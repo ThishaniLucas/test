@@ -6,7 +6,7 @@ import org.apache.spark.sql.types.StructField;
 
 public enum Column {
 
-    VALUE("value", DataTypes.StringType),
+    VALUE("lyrics", DataTypes.StringType),
 
     CLEAN("clean", DataTypes.StringType),
 

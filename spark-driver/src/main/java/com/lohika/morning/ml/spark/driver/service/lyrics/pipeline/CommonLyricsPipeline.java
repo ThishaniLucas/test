@@ -1,6 +1,8 @@
 package com.lohika.morning.ml.spark.driver.service.lyrics.pipeline;
 
 import static com.lohika.morning.ml.spark.distributed.library.function.map.lyrics.Column.*;
+import static org.apache.spark.sql.functions.*;
+
 import com.lohika.morning.ml.spark.driver.service.MLService;
 import com.lohika.morning.ml.spark.driver.service.lyrics.Genre;
 import com.lohika.morning.ml.spark.driver.service.lyrics.GenrePrediction;
@@ -64,8 +66,7 @@ public abstract class CommonLyricsPipeline implements LyricsPipeline {
     }
 
     Dataset<Row> readLyrics() {
-        Dataset input = readLyricsForGenre(lyricsTrainingSetDirectoryPath, Genre.METAL)
-                                                .union(readLyricsForGenre(lyricsTrainingSetDirectoryPath, Genre.POP));
+        Dataset input = readLyricsForGenre(lyricsTrainingSetDirectoryPath);
         // Reduce the input amount of partition minimal amount (spark.default.parallelism OR 2, whatever is less)
         input = input.coalesce(sparkSession.sparkContext().defaultMinPartitions()).cache();
         // Force caching.
@@ -74,17 +75,31 @@ public abstract class CommonLyricsPipeline implements LyricsPipeline {
         return input;
     }
 
-    private Dataset<Row> readLyricsForGenre(String inputDirectory, Genre genre) {
-        Dataset<Row> lyrics = readLyrics(inputDirectory, genre.name().toLowerCase() + "/*");
-        Dataset<Row> labeledLyrics = lyrics.withColumn(LABEL.getName(), functions.lit(genre.getValue()));
+    private Dataset<Row> readLyricsForGenre(String inputDirectory) {
+        Dataset<Row> lyrics = readLyrics(inputDirectory);
+        Column condition = when(col("genre").equalTo("pop"), lit(0D)).
+                when(col("genre").equalTo("country"), lit(1D)).
+                when(col("genre").equalTo("blues"), lit(2D)).
+                when(col("genre").equalTo("jazz"), lit(3D)).
+                when(col("genre").equalTo("reggae"), lit(4D)).
+                when(col("genre").equalTo("rock"), lit(5D)).
+                when(col("genre").equalTo("hip hop"), lit(6D)).otherwise(lit(-1D));
 
-        System.out.println(genre.name() + " music sentences = " + lyrics.count());
+        Dataset<Row> labeledLyrics = lyrics.withColumn(LABEL.getName(), condition);
+//        Dataset<Row> labeledLyrics = lyrics.withColumn(LABEL.getName(), functions.lit(Genre.valueOf(col("test").toString()).getValue()));
+        labeledLyrics.show(2);
+
+        for(Genre g : Genre.values()) {
+            long count = labeledLyrics.filter(col("genre").equalTo(g.getName())).count();
+            System.out.println(g.getName() + " music sentences = " + count);
+        }
+
 
         return labeledLyrics;
     }
 
-    private Dataset<Row> readLyrics(String inputDirectory, String path) {
-        Dataset<String> rawLyrics = sparkSession.read().textFile(Paths.get(inputDirectory).resolve(path).toString());
+    private Dataset<Row> readLyrics(String inputDirectory) {
+        Dataset<Row> rawLyrics = sparkSession.read().option("header", "true").csv(inputDirectory);
         rawLyrics = rawLyrics.filter(rawLyrics.col(VALUE.getName()).notEqual(""));
         rawLyrics = rawLyrics.filter(rawLyrics.col(VALUE.getName()).contains(" "));
 

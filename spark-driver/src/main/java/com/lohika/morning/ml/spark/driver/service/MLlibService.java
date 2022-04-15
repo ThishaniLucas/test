@@ -1,9 +1,9 @@
 package com.lohika.morning.ml.spark.driver.service;
 
+import com.lohika.morning.ml.spark.distributed.library.function.map.generic.mllib.MapRowToMLlibLabeledPoint;
 import com.lohika.morning.ml.spark.distributed.library.function.verify.VerifyLogisticRegressionModel;
 import com.lohika.morning.ml.spark.distributed.library.function.verify.VerifyNaiveBayesModel;
 import com.lohika.morning.ml.spark.distributed.library.function.verify.VerifySVMModel;
-import com.lohika.morning.ml.spark.driver.service.mnist.MnistUtilityService;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.spark.api.java.JavaPairRDD;
@@ -25,8 +25,7 @@ public class MLlibService {
     @Autowired
     private SparkSession sparkSession;
 
-    @Autowired
-    private MnistUtilityService mnistUtilityService;
+
 
     public Map<String, Object> trainLogisticRegression(String trainingSetParquetFilePath,
                                                        String testSetParquetFilePath,
@@ -82,7 +81,7 @@ public class MLlibService {
     private Tuple2<JavaRDD<LabeledPoint>, JavaRDD<LabeledPoint>> getTrainingAndTestDatasets(final String fullSetParquetFilePath) {
         Dataset<Row> fullSetDataset = sparkSession.read().parquet(fullSetParquetFilePath);
 
-        JavaRDD<LabeledPoint> fullSet = mnistUtilityService.rowToLabeledPoint(fullSetDataset);
+        JavaRDD<LabeledPoint> fullSet = rowToLabeledPoint(fullSetDataset);
 
         return getTrainingAndTestDatasets(fullSet);
     }
@@ -106,11 +105,11 @@ public class MLlibService {
         trainingSetDataset.cache();
         trainingSetDataset.count();
 
-        JavaRDD<LabeledPoint> trainingSetRDD = mnistUtilityService.rowToLabeledPoint(trainingSetDataset);
+        JavaRDD<LabeledPoint> trainingSetRDD = rowToLabeledPoint(trainingSetDataset);
 
         Dataset<Row> testSetDataset = sparkSession.read().parquet(testSetParquetFilePath);
 
-        JavaRDD<LabeledPoint> testSetRDD = mnistUtilityService.rowToLabeledPoint(testSetDataset);
+        JavaRDD<LabeledPoint> testSetRDD = rowToLabeledPoint(testSetDataset);
 
         return new Tuple2<>(trainingSetRDD, testSetRDD);
     }
@@ -192,6 +191,10 @@ public class MLlibService {
         System.out.println("Loaded logistic regression model from " + modelDirectoryPath);
         System.out.println("------------------------------------------------\n");
         return model;
+    }
+
+    public JavaRDD<LabeledPoint> rowToLabeledPoint(Dataset<Row> parquetRow) {
+        return parquetRow.javaRDD().map(new MapRowToMLlibLabeledPoint());
     }
 }
 
